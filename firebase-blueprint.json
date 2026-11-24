@@ -1,0 +1,155 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user account metadata for synchronization.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "provider": {
+          "type": "string",
+          "description": "Identity provider identifier",
+          "enum": ["google.com", "apple.com", "microsoft.com"]
+        },
+        "defaultSpreadsheetId": {
+          "type": "string",
+          "description": "Linked Google Sheet ID for admin reporting",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "provider", "createdAt", "updatedAt"]
+    },
+    "EncryptedSessionBackup": {
+      "title": "EncryptedSessionBackup",
+      "description": "AES-256-GCM encrypted simulation session snapshot stored in Firestore.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "caseId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "algorithm": {
+          "type": "string",
+          "enum": ["AES-256-GCM"]
+        },
+        "iv": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "ciphertext": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 65536
+        },
+        "checksum": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128
+        },
+        "spreadsheetId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "caseId", "title", "algorithm", "iv", "ciphertext", "checksum", "createdAt", "updatedAt"]
+    },
+    "CustomSimulationCase": {
+      "title": "CustomSimulationCase",
+      "description": "User-imported document simulation specification.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "cppClass": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "title", "domain", "summary", "cppClass", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Owner-only user synchronization profile without PII or client-writable role fields."
+    },
+    "/simulation_backups/{backupId}": {
+      "schema": { "$ref": "#/entities/EncryptedSessionBackup" },
+      "description": "Encrypted AES-256-GCM cloud backups of user simulation runs."
+    },
+    "/simulation_cases/{caseId}": {
+      "schema": { "$ref": "#/entities/CustomSimulationCase" },
+      "description": "User-authored simulation specifications extracted from uploaded documents."
+    }
+  }
+}

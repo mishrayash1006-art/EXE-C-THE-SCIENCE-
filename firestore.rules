@@ -1,0 +1,152 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdminEmail() {
+      return isVerifiedUser() && request.auth.token.email == 'mishrayash1006@gmail.com';
+    }
+
+    function isAdmin() {
+      return isAdminEmail() || (
+        isVerifiedUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'provider', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'provider', 'defaultSpreadsheetId', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.provider is string && data.provider in ['google.com', 'apple.com', 'microsoft.com']
+        && (!('defaultSpreadsheetId' in data) || (data.defaultSpreadsheetId is string && data.defaultSpreadsheetId.size() <= 128))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBackup(data) {
+      return data.keys().hasAll(['ownerId', 'caseId', 'title', 'algorithm', 'iv', 'ciphertext', 'checksum', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'caseId', 'title', 'algorithm', 'iv', 'ciphertext', 'checksum', 'spreadsheetId', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.caseId)
+        && data.caseId.size() <= 64
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.algorithm is string && data.algorithm == 'AES-256-GCM'
+        && data.iv is string && data.iv.size() >= 8 && data.iv.size() <= 64
+        && data.ciphertext is string && data.ciphertext.size() >= 16 && data.ciphertext.size() <= 65536
+        && data.checksum is string && data.checksum.size() >= 16 && data.checksum.size() <= 128
+        && (!('spreadsheetId' in data) || (data.spreadsheetId is string && data.spreadsheetId.size() <= 128))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCustomCase(data) {
+      return data.keys().hasAll(['ownerId', 'title', 'domain', 'summary', 'cppClass', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'title', 'domain', 'summary', 'cppClass', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.domain is string && data.domain.size() >= 1 && data.domain.size() <= 64
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 2000
+        && data.cppClass is string && data.cppClass.size() >= 1 && data.cppClass.size() <= 80
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdminEmail();
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && (isOwner(userId) || isAdmin())
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'defaultSpreadsheetId', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(userId) && (isOwner(userId) || isAdmin());
+    }
+
+    match /simulation_backups/{backupId} {
+      allow get: if isValidId(backupId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdminEmail());
+      allow create: if isVerifiedUser()
+        && isValidId(backupId)
+        && isValidBackup(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(backupId)
+        && (isOwner(existing().ownerId) || isAdmin())
+        && isValidBackup(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'iv', 'ciphertext', 'checksum', 'spreadsheetId', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(backupId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /simulation_cases/{caseId} {
+      allow get: if isValidId(caseId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdminEmail());
+      allow create: if isVerifiedUser()
+        && isValidId(caseId)
+        && isValidCustomCase(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(caseId)
+        && (isOwner(existing().ownerId) || isAdmin())
+        && isValidCustomCase(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'domain', 'summary', 'cppClass', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(caseId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && (isOwner(adminUid) || isAdminEmail());
+      allow list, create, update, delete: if false;
+    }
+
+    match /test/{docId} {
+      allow get: if isSignedIn() && docId == 'connection';
+      allow list, write: if false;
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Helios C++ 3D Studio",
+  "description": "Advanced 3D engineering modeling studio, interactive concept infographics, multi-case physics simulator, C++20 OpenGL source exporter, and Google Workspace administrative reporting suite.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
